@@ -1,0 +1,66 @@
+name: Build APK BugarKu
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ambil source code
+        uses: actions/checkout@v4
+
+      - name: Cek data latihan (JSON valid & lengkap)
+        run: python3 tools/cek_data.py app/src/main/assets/bugarku.json
+
+      - name: Siapkan Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # Runner ubuntu-latest sudah punya Android SDK bawaan (ANDROID_HOME)
+      - name: Build APK
+        run: |
+          chmod +x ./gradlew
+          set -o pipefail
+          ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee build.log
+          cp app/build/outputs/apk/release/app-release.apk BugarKu.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: BugarKu-APK
+          path: BugarKu.apk
+          if-no-files-found: error
+
+      # APK juga diterbitkan di halaman Releases supaya bisa di-download langsung dari HP
+      - name: Terbitkan di Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: BugarKu build ${{ github.run_number }}
+          body: APK BugarKu siap pasang. Download BugarKu.apk di bawah ini.
+          files: BugarKu.apk
+          make_latest: true
+
+      # Kalau gagal: simpan ringkasan error ke branch log-build supaya mudah diperbaiki
+      - name: Simpan log error
+        if: failure()
+        run: |
+          set +e
+          touch build.log
+          grep -n -E "^e: |error:|FAILED|What went wrong|Unresolved|Exception" -A4 build.log | head -400 > ringkas.txt
+          tail -250 build.log > ekor.txt
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git checkout --orphan log-build
+          git reset -q
+          git add -f ringkas.txt ekor.txt
+          git commit -q -m "Log gagal build ${{ github.run_number }} untuk ${{ github.sha }}"
+          git push -f origin log-build
