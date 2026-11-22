@@ -16,13 +16,17 @@ android {
         versionName = "1.0"
     }
 
-    // Kunci tanda tangan tetap: update APK cukup ditimpa, riwayat & catatan tidak hilang
+    // Kunci tanda tangan diambil dari GitHub Secrets (KEYSTORE_BASE64 dan KEYSTORE_PASSWORD).
+    // Workflow menaruh file kuncinya di KEYSTORE_FILE saat build; file kunci tidak disimpan di repo.
+    val releaseKeystore = System.getenv("KEYSTORE_FILE")
     signingConfigs {
-        create("bugarku") {
-            storeFile = file("bugarku.keystore")
-            storePassword = "bugarku123"
-            keyAlias = "bugarku"
-            keyPassword = "bugarku123"
+        if (releaseKeystore != null) {
+            create("bugarku") {
+                storeFile = file(releaseKeystore)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = "bugarku"
+                keyPassword = System.getenv("KEYSTORE_PASSWORD")
+            }
         }
     }
 
@@ -34,10 +38,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("bugarku")
+            signingConfig = if (releaseKeystore != null) signingConfigs.getByName("bugarku") else signingConfigs.getByName("debug")
         }
         debug {
-            signingConfig = signingConfigs.getByName("bugarku")
+            if (releaseKeystore != null) signingConfig = signingConfigs.getByName("bugarku")
         }
     }
 
