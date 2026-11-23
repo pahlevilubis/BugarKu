@@ -9,6 +9,7 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -58,6 +59,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import com.bugarku.app.data.Isi
 import com.bugarku.app.data.NAMA_LEVEL
 import com.bugarku.app.data.Store
 import com.bugarku.app.notif.Pengingat
@@ -95,13 +97,42 @@ fun SettingsScreen(aksi: Aksi) {
                     label = { Text("Nama panggilan") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(12.dp))
-                Text("Karakter & jenis kelamin", style = MaterialTheme.typography.labelLarge, color = cs.onSurfaceVariant)
+                Text("Jenis kelamin", style = MaterialTheme.typography.labelLarge, color = cs.onSurfaceVariant)
                 Spacer(Modifier.height(6.dp))
                 Segmen(listOf("Pria", "Wanita"), if (Store.pria) 0 else 1, { Store.aturPria(it == 0) })
                 Text(
-                    "Dipakai untuk gambar karakter dan batas lingkar perut (pria 90 cm, wanita 80 cm).",
+                    "Dipakai untuk batas lingkar perut (pria 90 cm, wanita 80 cm).",
                     style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp),
                 )
+                Spacer(Modifier.height(12.dp))
+                Text("Peraga gerakan", style = MaterialTheme.typography.labelLarge, color = cs.onSurfaceVariant)
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    val contoh = Isi.gerakan("jalan_di_tempat") ?: Isi.gerakan.first()
+                    listOf(true to "Wanita", false to "Pria").forEach { (wanita, label) ->
+                        val dipilih = Store.peragaWanita == wanita
+                        Column(
+                            Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(18.dp))
+                                .border(
+                                    if (dipilih) 3.dp else 1.dp,
+                                    if (dipilih) cs.primary else cs.outlineVariant,
+                                    RoundedCornerShape(18.dp),
+                                )
+                                .clickable { Store.aturPeragaWanita(wanita) }
+                                .padding(8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            PratinjauPeraga(contoh, wanita)
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                label, style = MaterialTheme.typography.titleMedium,
+                                color = if (dipilih) cs.primary else cs.onSurface,
+                            )
+                        }
+                    }
+                }
                 Spacer(Modifier.height(10.dp))
                 Stepper("Tinggi badan", "${Store.tinggi} cm",
                     onKurang = { Store.aturTinggi((Store.tinggi - 1).coerceAtLeast(100)) },
@@ -212,7 +243,7 @@ fun SettingsScreen(aksi: Aksi) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("Tentang BugarKu", style = MaterialTheme.typography.titleMedium)
-                        Text("Versi 1.0 · by Pahlevi Lubis", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
+                        Text("Versi 1.1 · by Pahlevi Lubis", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
                     }
                     Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null)
                 }
@@ -387,7 +418,7 @@ fun TentangScreen(aksi: Aksi) {
                     Text("B", color = androidx.compose.ui.graphics.Color.White, style = MaterialTheme.typography.displaySmall)
                 }
                 Text("BugarKu", style = MaterialTheme.typography.headlineLarge)
-                Text("Versi 1.0 · by Pahlevi Lubis", style = MaterialTheme.typography.titleMedium, color = cs.primary)
+                Text("Versi 1.1 · by Pahlevi Lubis", style = MaterialTheme.typography.titleMedium, color = cs.primary)
                 Text(
                     "Latihan di rumah tanpa alat untuk badan atas, lengan, perut, kaki, kardio, dan peregangan — " +
                         "lengkap dengan karakter bergerak, suara pemandu, program 28 hari, pengingat, dan panduan mengecilkan perut buncit.",

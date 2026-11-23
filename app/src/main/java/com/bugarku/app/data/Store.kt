@@ -40,6 +40,9 @@ object Store {
         private set
     var pria by mutableStateOf(true)
         private set
+    /** Peraga gerakan: wanita (kuncir kuda) atau pria. Terpisah dari jenis kelamin pengguna. */
+    var peragaWanita by mutableStateOf(true)
+        private set
     var tinggi by mutableIntStateOf(165)
         private set
     var berat by mutableFloatStateOf(70f)
@@ -105,6 +108,7 @@ object Store {
         sp = app.getSharedPreferences("bugarku", Context.MODE_PRIVATE)
         nama = sp.getString("nama", "") ?: ""
         pria = sp.getBoolean("pria", true)
+        peragaWanita = sp.getBoolean("peragaWanita", true)
         tinggi = sp.getInt("tinggi", 165)
         berat = sp.getFloat("berat", 70f)
         level = sp.getInt("level", 1)
@@ -136,6 +140,7 @@ object Store {
     // ── Profil & latihan ──
     fun aturNama(v: String) { nama = v; sp.edit().putString("nama", v).apply() }
     fun aturPria(v: Boolean) { pria = v; sp.edit().putBoolean("pria", v).apply() }
+    fun aturPeragaWanita(v: Boolean) { peragaWanita = v; sp.edit().putBoolean("peragaWanita", v).apply() }
     fun aturTinggi(v: Int) { tinggi = v; sp.edit().putInt("tinggi", v).apply() }
     fun aturBerat(v: Float) { berat = v; sp.edit().putFloat("berat", v).apply() }
     fun aturLevel(v: Int) { level = v.coerceIn(1, 3); sp.edit().putInt("level", level).apply() }

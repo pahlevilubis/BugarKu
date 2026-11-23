@@ -1,24 +1,52 @@
-"""Pratinjau gaya karakter 'manusia' (bukan garis) dari data pose yang sama."""
+"""
+Pratinjau peraga BugarKu (gaya sama dengan Figur.kt di app).
+  python3 tools/karakter.py push_up,squat,crunch wanita
+"""
 import math
 import sys
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw
 from pose import proses, IDX
 import gerakan as G
 
 S = 3  # supersampling
 
-KULIT = (198, 139, 89)
-KULIT_G = (168, 113, 70)
-RAMBUT = (35, 30, 30)
-BAJU = (44, 50, 64)
-BAJU_G = (30, 34, 45)
-CELANA = (28, 31, 38)
-CELANA_G = (18, 20, 25)
-SEPATU = (245, 245, 245)
-SOL = (240, 110, 50)
-SOROT = (255, 96, 20, 150)
-LATAR = (236, 239, 243)
-MATRAS = (70, 76, 88)
+
+def hx(h, a=255):
+    return ((h >> 16) & 255, (h >> 8) & 255, h & 255, a)
+
+
+PERAGA = {
+    "wanita": dict(
+        kulit=hx(0xEDBE99), kulitG=hx(0xD09E7A), rambut=hx(0x2A1D19), atasan=hx(0x283047), atasanG=hx(0x1C2233),
+        bawahan=hx(0x283047), bawahanG=hx(0x1C2233), sepatu=hx(0x2BC0C4), sepatuG=hx(0x21999C), sol=hx(0xFF7A45),
+        lengan_baju=0.0, celana_pendek=0.42, kuncir=True, pipi=True, ramping=0.92,
+    ),
+    "pria": dict(
+        kulit=hx(0xC68B59), kulitG=hx(0xA87146), rambut=hx(0x231E1E), atasan=hx(0x2C3240), atasanG=hx(0x1E222D),
+        bawahan=hx(0x1C1F26), bawahanG=hx(0x121419), sepatu=hx(0xF5F5F5), sepatuG=hx(0xD9D9D9), sol=hx(0xFF6A3D),
+        lengan_baju=0.45, celana_pendek=1.0, kuncir=False, pipi=False, ramping=1.0,
+    ),
+}
+MATA = hx(0x2B2020)
+BIBIR = hx(0xB4584A)
+MERAH_PIPI = (255, 120, 120, 70)
+JAM = hx(0x22252C)
+SOROT = (255, 70, 10, 125)
+LATAR = (236, 239, 243, 255)
+MATRAS = (74, 80, 92, 255)
+
+
+def arah(d):
+    r = math.radians(d)
+    return (math.cos(r), math.sin(r))
+
+
+def tambah(a, b, k=1.0):
+    return (a[0] + b[0] * k, a[1] + b[1] * k)
+
+
+def antara(a, b, t):
+    return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
 
 
 def tabung(d, a, b, ra, rb, warna):
@@ -31,11 +59,21 @@ def tabung(d, a, b, ra, rb, warna):
     d.ellipse([b[0] - rb, b[1] - rb, b[0] + rb, b[1] + rb], fill=warna)
 
 
-def lerp(a, b, t):
-    return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
+def bulat(d, c, r, warna):
+    d.ellipse([c[0] - r, c[1] - r, c[0] + r, c[1] + r], fill=warna)
 
 
-def kartu(g, ukuran=230, frame=None):
+def garis(d, a, b, w, warna):
+    tabung(d, a, b, w / 2, w / 2, warna)
+
+
+def busur(d, c, r, mulai, sapuan, warna):
+    # sudut layar (y ke bawah), searah jarum jam = positif, sama seperti drawArc Compose
+    d.pieslice([c[0] - r, c[1] - r, c[0] + r, c[1] + r], start=mulai, end=mulai + sapuan, fill=warna)
+
+
+def kartu(g, jenis="wanita", ukuran=230, frame=None, waktu=0.0):
+    w = PERAGA[jenis]
     data = proses(g)
     frs = data["_frames"]
     fr = frs[data["ikon"] if frame is None else frame]
@@ -45,109 +83,168 @@ def kartu(g, ukuran=230, frame=None):
     d = ImageDraw.Draw(img, "RGBA")
     d.rounded_rectangle([0, 0, W - 1, W - 1], radius=28 * S, fill=LATAR)
     kt = data["kotak"]
-    lebar = kt[2] - kt[0]
-    tinggi = kt[3] - kt[1]
-    pad = 0.12 * W
+    lebar, tinggi = kt[2] - kt[0], kt[3] - kt[1]
+    pad = 0.1 * W
     sk = min((W - 2 * pad) / lebar, (W - 2 * pad) / tinggi)
     ox = (W - lebar * sk) / 2 - kt[0] * sk
-    lantai = W - pad * 0.9
+    bawah = W - pad * 0.8
+
     def P(pt):
-        return (ox + pt[0] * sk, lantai - pt[1] * sk)
-    u = sk  # satu satuan dunia
-    # matras untuk gerakan lantai
-    rendah = min(fr[IDX["leher"]][1], fr[IDX["pinggul"]][1]) < 25
+        return (ox + pt[0] * sk, bawah - (pt[1] - kt[1]) * sk)
+
+    u = sk
+    lantai = P((0, 0))[1]
+    rendah = min(fr[IDX["leher"]][1], frs[0][IDX["leher"]][1]) < 32
     if rendah:
         d.rounded_rectangle([P((kt[0] - 4, 0))[0], lantai - 1.2 * u, P((kt[2] + 4, 0))[0], lantai + 1.6 * u],
                             radius=1.2 * u, fill=MATRAS)
-    # bayangan
     xs = [P(p)[0] for p in fr]
-    d.ellipse([min(xs) - 2 * u, lantai - 1.2 * u, max(xs) + 2 * u, lantai + 1.8 * u], fill=(0, 0, 0, 28))
+    d.ellipse([min(xs) - 2 * u, lantai - 1.2 * u, max(xs) + 2 * u, lantai + 1.8 * u], fill=(0, 0, 0, 26))
     for gp in data["props"]:
-        tabung(d, P((gp[0], gp[1])), P((gp[2], gp[3])), 1.3 * u, 1.3 * u, (150, 120, 90))
+        tabung(d, P((gp[0], gp[1])), P((gp[2], gp[3])), 1.3 * u, 1.3 * u, (154, 122, 90, 255))
 
-    def titik(n):
+    def t(n):
         return P(fr[IDX[n]])
 
-    def lengan(n, gelap):
-        b, s, t = titik("bahu" + n), titik("siku" + n), titik("tangan" + n)
-        kul = KULIT_G if gelap else KULIT
-        tabung(d, s, t, 1.9 * u, 1.5 * u, kul)
-        tabung(d, b, s, 2.3 * u, 1.9 * u, kul)
-        tabung(d, b, lerp(b, s, 0.45), 2.8 * u, 2.5 * u, BAJU_G if gelap else BAJU)
-        d.ellipse([t[0] - 1.8 * u, t[1] - 1.8 * u, t[0] + 1.8 * u, t[1] + 1.8 * u], fill=kul)
+    rp = w["ramping"]
+
+    def lengan(n, gelap, jam):
+        b, s, tg = t("bahu" + n), t("siku" + n), t("tangan" + n)
+        kul = w["kulitG"] if gelap else w["kulit"]
+        tabung(d, s, tg, 1.75 * u * rp, 1.35 * u * rp, kul)
+        tabung(d, b, s, 2.2 * u * rp, 1.75 * u * rp, kul)
+        if w["lengan_baju"] > 0:
+            tabung(d, b, antara(b, s, w["lengan_baju"]), 2.75 * u, 2.45 * u, w["atasanG"] if gelap else w["atasan"])
+        bulat(d, tg, 1.65 * u * rp, kul)
+        if jam:
+            bulat(d, antara(s, tg, 0.8), 1.05 * u, JAM)
 
     def kaki(n, gelap):
-        g_, l, m, j = titik("pg" + n), titik("lutut" + n), titik("mata" + n), titik("jari" + n)
-        c = CELANA_G if gelap else CELANA
-        tabung(d, l, m, 2.9 * u, 2.1 * u, c)
-        tabung(d, g_, l, 3.9 * u, 2.9 * u, c)
-        tabung(d, m, j, 1.9 * u, 1.6 * u, SEPATU)
-        tabung(d, lerp(m, j, 0.1), j, 0.9 * u, 0.8 * u, SOL)
+        g_, l, m, j = t("pg" + n), t("lutut" + n), t("mata" + n), t("jari" + n)
+        kul = w["kulitG"] if gelap else w["kulit"]
+        cel = w["bawahanG"] if gelap else w["bawahan"]
+        pendek = w["celana_pendek"] < 1.0
+        tabung(d, l, m, 2.6 * u * rp, 1.75 * u * rp, kul if pendek else cel)
+        tabung(d, g_, l, 3.7 * u * rp, 2.6 * u * rp, kul if pendek else cel)
+        if pendek:
+            tabung(d, g_, antara(g_, l, w["celana_pendek"]), 4.1 * u * rp, 3.5 * u * rp, cel)
+        tabung(d, m, j, 1.95 * u, 1.65 * u, w["sepatuG"] if gelap else w["sepatu"])
+        tabung(d, antara(m, j, 0.05), j, 0.85 * u, 0.75 * u, w["sol"])
 
-    def sorot(a, b, ra):
-        tabung(d, a, b, ra, ra * 0.85, SOROT)
-
-    kaki("2", True)
-    lengan("2", True)
-    # badan
-    pg, lh = titik("pinggul"), titik("leher")
-    if depan:
-        b1, b2, g1, g2 = titik("bahu1"), titik("bahu2"), titik("pg1"), titik("pg2")
-        tabung(d, g1, g2, 3.6 * u, 3.6 * u, CELANA)
-        d.polygon([b1, b2, lerp(g2, b2, 0.12), lerp(g1, b1, 0.12)], fill=BAJU)
-        tabung(d, b1, b2, 2.6 * u, 2.6 * u, BAJU)
-        tabung(d, lerp(g1, b1, 0.1), lerp(g2, b2, 0.1), 3.2 * u, 3.2 * u, BAJU)
-    else:
-        tabung(d, pg, lerp(pg, lh, 0.15), 4.6 * u, 4.4 * u, CELANA)
-        tabung(d, lerp(pg, lh, 0.12), lerp(pg, lh, 0.85), 4.3 * u, 4.9 * u, BAJU)
-        tabung(d, lerp(pg, lh, 0.8), lh, 4.6 * u, 3.4 * u, BAJU)
-    kaki("1", False)
-    # leher & kepala
-    kp = titik("kepala")
-    tabung(d, lh, lerp(lh, kp, 0.6), 1.9 * u, 1.9 * u, KULIT_G)
+    bayang = not depan
+    kaki("2", bayang)
+    lengan("2", bayang, False)
+    pg, lh = t("pinggul"), t("leher")
+    kp = t("kepala")
     rk = 5.4 * u
-    d.ellipse([kp[0] - rk, kp[1] - rk, kp[0] + rk, kp[1] + rk], fill=KULIT)
-    # rambut: tutup bagian atas-belakang kepala
-    arah_atas = math.atan2(-(kp[1] - lh[1]), kp[0] - lh[0])  # dalam koordinat layar dibalik
-    awal = math.degrees(arah_atas)
+    atas = math.degrees(math.atan2(kp[1] - lh[1], kp[0] - lh[0]))
+    up = arah(atas)
+    muka = arah(atas + 90)
+    blk = arah(atas - 90)
+
+    # kuncir di belakang kepala (digambar sebelum badan & kepala)
+    if w["kuncir"]:
+        akar = tambah(kp, arah(atas - 40), rk * 0.8) if not depan else tambah(kp, up, rk * 0.75)
+        if depan:
+            samping = arah(atas + 90)
+            arah1 = (samping[0] * 0.5 + 0.0, samping[1] * 0.5 + 0.9)
+        else:
+            arah1 = (blk[0] * 0.6, blk[1] * 0.6 + 0.8)
+        L = math.hypot(*arah1) or 1
+        a1 = math.degrees(math.atan2(arah1[1] / L, arah1[0] / L)) + math.sin(waktu * 7) * 9
+        tengah = tambah(akar, arah(a1), rk * 1.05)
+        a2 = a1 + (15 if math.cos(math.radians(a1)) < 0 else -15) + math.sin(waktu * 7 + 0.8) * 12
+        ujung = tambah(tengah, arah(a2), rk * 1.0)
+        tabung(d, akar, tengah, rk * 0.36, rk * 0.27, w["rambut"])
+        tabung(d, tengah, ujung, rk * 0.27, rk * 0.07, w["rambut"])
+
+    # badan
     if depan:
-        d.pieslice([kp[0] - rk * 1.05, kp[1] - rk * 1.08, kp[0] + rk * 1.05, kp[1] + rk * 1.02],
-                   start=-awal - 95, end=-awal + 95, fill=RAMBUT)
+        b1, b2, g1, g2 = t("bahu1"), t("bahu2"), t("pg1"), t("pg2")
+        c = antara(pg, lh, 0.5)
+        pinggang1 = antara(antara(g1, b1, 0.42), c, 0.14 if w["kuncir"] else 0.05)
+        pinggang2 = antara(antara(g2, b2, 0.42), c, 0.14 if w["kuncir"] else 0.05)
+        tabung(d, g1, g2, 3.7 * u, 3.7 * u, w["bawahan"])
+        d.polygon([b1, b2, pinggang2, antara(g2, b2, 0.12), antara(g1, b1, 0.12), pinggang1], fill=w["atasan"])
+        tabung(d, b1, b2, 2.3 * u, 2.3 * u, w["atasan"])
+        tabung(d, antara(g1, b1, 0.1), antara(g2, b2, 0.1), 3.3 * u, 3.3 * u, w["atasan"])
     else:
-        d.pieslice([kp[0] - rk * 1.06, kp[1] - rk * 1.06, kp[0] + rk * 1.06, kp[1] + rk * 1.06],
-                   start=-awal - 40, end=-awal + 140 - 180 + 180, fill=RAMBUT)
-        # telinga
-        e = (kp[0] - math.cos(arah_atas + math.pi / 2) * 0.5 * u, kp[1] + math.sin(arah_atas + math.pi / 2) * 0.5 * u)
-        d.ellipse([e[0] - 1.2 * u, e[1] - 1.4 * u, e[0] + 1.2 * u, e[1] + 1.4 * u], fill=KULIT_G)
-    lengan("1", False)
-    # sorotan otot
+        tabung(d, pg, antara(pg, lh, 0.16), 4.5 * u * rp, 4.2 * u * rp, w["bawahan"])
+        tabung(d, antara(pg, lh, 0.12), antara(pg, lh, 0.5), 4.2 * u * rp, 3.9 * u * rp, w["atasan"])
+        tabung(d, antara(pg, lh, 0.48), antara(pg, lh, 0.84), 3.9 * u * rp, 4.8 * u * rp, w["atasan"])
+        tabung(d, antara(pg, lh, 0.8), lh, 4.5 * u * rp, 3.1 * u * rp, w["atasan"])
+    kaki("1", False)
+
+    # leher & kepala
+    tabung(d, lh, antara(lh, kp, 0.62), 1.75 * u, 1.75 * u, w["kulitG"])
+    bulat(d, kp, rk, w["kulit"])
+    rr = rk * 1.07
+    if depan:
+        busur(d, kp, rr, atas - 98, 196, w["rambut"])
+        if w["kuncir"]:
+            sp = arah(atas + 90)
+            for s in (1, -1):
+                garis(d, tambah(tambah(kp, sp, s * rk * 0.88), up, rk * 0.35),
+                      tambah(tambah(kp, sp, s * rk * 0.93), up, -rk * 0.75), rk * 0.42, w["rambut"])
+        # wajah depan
+        sp = arah(atas + 90)
+        for s in (1, -1):
+            mata = tambah(tambah(kp, sp, s * rk * 0.36), up, -rk * 0.05)
+            bulat(d, mata, rk * 0.13, MATA)
+            bulat(d, tambah(tambah(mata, sp, rk * 0.04), up, rk * 0.05), rk * 0.045, (255, 255, 255, 255))
+            garis(d, tambah(tambah(kp, sp, s * rk * 0.22), up, rk * 0.24),
+                  tambah(tambah(kp, sp, s * rk * 0.5), up, rk * 0.22), rk * 0.08, w["rambut"])
+            if w["pipi"]:
+                bulat(d, tambah(tambah(kp, sp, s * rk * 0.55), up, -rk * 0.3), rk * 0.16, MERAH_PIPI)
+        garis(d, tambah(tambah(kp, sp, -rk * 0.14), up, -rk * 0.5), tambah(tambah(kp, sp, rk * 0.14), up, -rk * 0.5),
+              rk * 0.08, BIBIR)
+    else:
+        awal = atas - 150 if w["kuncir"] else atas - 140
+        busur(d, kp, rr, awal, atas + 48 - awal, w["rambut"])
+        # telinga, hidung, mata, alis, mulut
+        bulat(d, tambah(kp, muka, -rk * 0.12), rk * 0.2, w["kulitG"])
+        bulat(d, tambah(tambah(kp, muka, rk * 0.95), up, -rk * 0.08), rk * 0.15, w["kulit"])
+        mata = tambah(tambah(kp, muka, rk * 0.55), up, -rk * 0.02)
+        bulat(d, mata, rk * 0.13, MATA)
+        bulat(d, tambah(tambah(mata, muka, rk * 0.04), up, rk * 0.05), rk * 0.045, (255, 255, 255, 255))
+        garis(d, tambah(tambah(kp, muka, rk * 0.42), up, rk * 0.27), tambah(tambah(kp, muka, rk * 0.72), up, rk * 0.25),
+              rk * 0.08, w["rambut"])
+        garis(d, tambah(tambah(kp, muka, rk * 0.6), up, -rk * 0.5), tambah(tambah(kp, muka, rk * 0.8), up, -rk * 0.45),
+              rk * 0.07, BIBIR)
+        if w["pipi"]:
+            bulat(d, tambah(tambah(kp, muka, rk * 0.4), up, -rk * 0.3), rk * 0.17, MERAH_PIPI)
+    lengan("1", False, True)
+    if depan:
+        lengan("2", False, False)
+
     for s in g.get("sorot", []):
         if s == "lengan":
-            sorot(lerp(titik("bahu1"), titik("siku1"), 0.15), titik("siku1"), 1.7 * u)
+            garis(d, antara(t("bahu1"), t("siku1"), 0.2), t("siku1"), 3.2 * u, SOROT)
         elif s in ("dada", "bahu", "punggung"):
-            sorot(lerp(pg, lh, 0.62), lerp(pg, lh, 0.9), 2.8 * u)
+            garis(d, antara(pg, lh, 0.62), antara(pg, lh, 0.9), 5.4 * u, SOROT)
         elif s == "perut":
-            sorot(lerp(pg, lh, 0.2), lerp(pg, lh, 0.55), 2.8 * u)
+            garis(d, antara(pg, lh, 0.2), antara(pg, lh, 0.55), 5.4 * u, SOROT)
         elif s == "kaki":
-            sorot(lerp(titik("pg1"), titik("lutut1"), 0.15), lerp(titik("pg1"), titik("lutut1"), 0.85), 2.4 * u)
+            garis(d, antara(t("pg1"), t("lutut1"), 0.15), antara(t("pg1"), t("lutut1"), 0.85), 4.6 * u, SOROT)
         elif s == "bokong":
-            sorot(pg, lerp(pg, titik("lutut1"), 0.25), 3.0 * u)
-    img = img.resize((ukuran, ukuran), Image.LANCZOS)
-    return img
+            garis(d, pg, antara(pg, t("lutut1"), 0.25), 5.8 * u, SOROT)
+    return img.resize((ukuran, ukuran), Image.LANCZOS)
 
 
 def main():
     ids = sys.argv[1].split(",")
+    jenis = sys.argv[2] if len(sys.argv) > 2 else "wanita"
     kolom = 4
-    ukuran = 230
+    ukuran = 260
     gs = {g["id"]: g for g in G.G}
     baris = (len(ids) + kolom - 1) // kolom
     lembar = Image.new("RGB", (kolom * (ukuran + 16) + 16, baris * (ukuran + 16) + 16), "white")
     for i, gid in enumerate(ids):
-        k = kartu(gs[gid], ukuran)
+        k = kartu(gs[gid], jenis, ukuran)
         lembar.paste(k, (16 + (i % kolom) * (ukuran + 16), 16 + (i // kolom) * (ukuran + 16)), k)
-    lembar.save("/tmp/karakter.png")
-    print("/tmp/karakter.png")
+    keluar = f"/tmp/peraga_{jenis}.png"
+    lembar.save(keluar)
+    print(keluar)
 
 
 if __name__ == "__main__":

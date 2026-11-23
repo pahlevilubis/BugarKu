@@ -12,8 +12,8 @@ android {
         applicationId = "com.bugarku.app"
         minSdk = 21 // Android 5.0 ke atas
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
     }
 
     // Kunci tanda tangan diambil dari GitHub Secrets (KEYSTORE_BASE64 dan KEYSTORE_PASSWORD).
